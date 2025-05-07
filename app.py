@@ -18,7 +18,6 @@ def optimize():
         app.logger.info('Received data: %s', data)
 
         if not data or 'truckSize' not in data or 'pallets' not in data:
-            app.logger.error('Invalid input data')
             return jsonify({'errors': ['Invalid input data']}), 400
 
         truck_size = data.get('truckSize')
@@ -31,57 +30,55 @@ def optimize():
         }
 
         if truck_size not in truck_sizes:
-            app.logger.error('Invalid truck size: %s', truck_size)
             return jsonify({'errors': ['Invalid truck size']}), 400
 
         truck = truck_sizes[truck_size]
+
+        # 🚚 New stacking limits
+        MAX_TOTAL_PALLETS = 60
+        MAX_STACKABLE_PALLET_HEIGHT = 45
+        MAX_STACK_HEIGHT = 90
+
+        total_qty = len(pallets)
+        if total_qty > MAX_TOTAL_PALLETS:
+            return jsonify({'errors': [f'Total pallet quantity ({total_qty}) exceeds limit of {MAX_TOTAL_PALLETS}.']}), 400
+
         result_pallets = []
-
-        total_qty = sum(pallet.get('qty', 1) for pallet in pallets)
-        if total_qty > 20:
-            app.logger.error('Total pallet quantity exceeds limit: %s', total_qty)
-            return jsonify({'errors': [f'Total pallet quantity ({total_qty}) exceeds limit of 20.']}), 400
-
         pallet_counter = 1
+
         for pallet in pallets:
             try:
-                qty = int(pallet.get('qty', 1))
                 length = float(pallet.get('length', 0))
                 width = float(pallet.get('width', 0))
                 height = float(pallet.get('height', 0))
                 weight = float(pallet.get('weight', 0))
                 stackable = bool(pallet.get('stackable', False))
 
-                app.logger.info('Processing pallet: qty=%s, length=%s, width=%s, height=%s, weight=%s, stackable=%s',
-                                qty, length, width, height, weight, stackable)
+                # ✅ New height check for stackable pallets
+                if stackable and height > MAX_STACKABLE_PALLET_HEIGHT:
+                    return jsonify({
+                        'errors': [
+                            f'Stackable pallets must be ≤ {MAX_STACKABLE_PALLET_HEIGHT} inches tall. '
+                            f'Total stacked height must not exceed {MAX_STACK_HEIGHT} inches.'
+                        ]
+                    }), 400
 
-                if qty <= 0:
-                    app.logger.error('Invalid quantity: %s', qty)
-                    return jsonify({'errors': ['Pallet quantity must be positive']}), 400
                 if length <= 0 or width <= 0 or height <= 0 or weight <= 0:
-                    app.logger.error('Invalid dimensions or weight: length=%s, width=%s, height=%s, weight=%s',
-                                     length, width, height, weight)
                     return jsonify({'errors': ['Invalid pallet dimensions or weight']}), 400
-                if stackable and height >= 50:
-                    app.logger.error('Stackable pallets height under 50 inches: %s', height)
-                    return jsonify({'errors': ['Stackable pallets must have height under 50 inches']}), 400
 
-                for i in range(qty):
-                    result_pallets.append({
-                        'name': str(pallet_counter + i),
-                        'length': length,
-                        'width': width,
-                        'height': height,
-                        'weight': weight,
-                        'stackable': stackable
-                    })
-                pallet_counter += qty
+                result_pallets.append({
+                    'name': str(pallet_counter),
+                    'length': length,
+                    'width': width,
+                    'height': height,
+                    'weight': weight,
+                    'stackable': stackable
+                })
+                pallet_counter += 1
 
             except (ValueError, TypeError) as e:
-                app.logger.error('Error processing pallet: %s', str(e))
                 return jsonify({'errors': [f'Invalid pallet data: {str(e)}']}), 400
 
-        app.logger.info('Processed %s pallets', len(result_pallets))
         return jsonify({
             'truck': truck,
             'pallets': result_pallets
@@ -90,5 +87,7 @@ def optimize():
     except Exception as e:
         app.logger.error('Server error: %s', str(e))
         return jsonify({'errors': [f'Server error: {str(e)}']}), 500
+
+# ✅ Ensure this runs properly on Render
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000)
