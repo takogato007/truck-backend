@@ -90,3 +90,5 @@ def optimize():
     except Exception as e:
         app.logger.error('Server error: %s', str(e))
         return jsonify({'errors': [f'Server error: {str(e)}']}), 500
+if __name__ == "__main__":
+    app.run(host="0.0.0.0", port=5000)
