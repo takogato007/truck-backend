@@ -3,7 +3,12 @@ from flask_cors import CORS
 
 app = Flask(__name__)
 CORS(app, resources={r"/api/*": {
-    "origins": ["http://localhost:5173", "http://localhost:3000", "https://theloaddepot.com"],
+    "origins": [
+        "http://localhost:5173",
+        "http://localhost:3000",
+        "https://theloaddepot.com",
+        "https://www.theloaddepot.com"
+    ],
     "allow_headers": ["Content-Type"],
     "methods": ["POST", "OPTIONS"]
 }})
@@ -34,7 +39,6 @@ def optimize():
 
         truck = truck_sizes[truck_size]
 
-        # 🚚 New stacking limits
         MAX_TOTAL_PALLETS = 60
         MAX_STACKABLE_PALLET_HEIGHT = 45
         MAX_STACK_HEIGHT = 90
@@ -54,7 +58,6 @@ def optimize():
                 weight = float(pallet.get('weight', 0))
                 stackable = bool(pallet.get('stackable', False))
 
-                # ✅ New height check for stackable pallets
                 if stackable and height > MAX_STACKABLE_PALLET_HEIGHT:
                     return jsonify({
                         'errors': [
@@ -88,6 +91,5 @@ def optimize():
         app.logger.error('Server error: %s', str(e))
         return jsonify({'errors': [f'Server error: {str(e)}']}), 500
 
-# ✅ Ensure this runs properly on Render
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000)
