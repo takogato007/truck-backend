@@ -82,9 +82,73 @@ def optimize():
             except (ValueError, TypeError) as e:
                 return jsonify({'errors': [f'Invalid pallet data: {str(e)}']}), 400
 
+        # === BEGIN POSITIONING LOGIC ===
+        scale = 1
+        spacing = 0
+        x_cursor = 0
+        y_cursor = 0
+        row_height = 0
+        placed_pallets = []
+
+        stackables = [p for p in result_pallets if p['stackable']]
+        non_stackables = [p for p in result_pallets if not p['stackable']]
+
+        # Split stackables in half
+        half = len(stackables) // 2
+        bottom_stack = stackables[:half]
+        top_stack = stackables[half:]
+
+        # STEP 1: Place non-stackables first
+        for pallet in non_stackables:
+            if x_cursor + pallet['length'] > truck['length']:
+                x_cursor = 0
+                y_cursor += row_height + spacing
+                row_height = 0
+
+            pallet['x'] = x_cursor
+            pallet['y'] = y_cursor
+            placed_pallets.append(pallet)
+
+            x_cursor += pallet['length'] + spacing
+            row_height = max(row_height, pallet['width'])
+
+        # Reset placement for bottom stacks
+        x_cursor = 0
+        y_cursor += row_height + spacing
+        row_height = 0
+
+        # STEP 2: Place bottom of stackables
+        for bottom in bottom_stack:
+            if x_cursor + bottom['length'] > truck['length']:
+                x_cursor = 0
+                y_cursor += row_height + spacing
+                row_height = 0
+
+            bottom['x'] = x_cursor
+            bottom['y'] = y_cursor
+            placed_pallets.append(bottom)
+
+            x_cursor += bottom['length'] + spacing
+            row_height = max(row_height, bottom['width'])
+
+        # STEP 3: Stack top pallets directly on bottom ones
+        for i, top in enumerate(top_stack):
+            if i < len(bottom_stack):
+                base = bottom_stack[i]
+                top['x'] = base['x']
+                top['y'] = base['y']  # Same position (frontend can offset vertically)
+                placed_pallets.append(top)
+            else:
+                # If more tops than bottoms
+                top['x'] = 0
+                top['y'] = y_cursor + row_height + 20
+                placed_pallets.append(top)
+
+        # === END POSITIONING LOGIC ===
+
         return jsonify({
             'truck': truck,
-            'pallets': result_pallets
+            'pallets': placed_pallets
         }), 200
 
     except Exception as e:
